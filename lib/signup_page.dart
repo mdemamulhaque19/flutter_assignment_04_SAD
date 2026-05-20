@@ -2,6 +2,7 @@ import 'package:email_validator/email_validator.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_assignment_4/login_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -13,11 +14,14 @@ class SignupPage extends StatefulWidget {
 class _SignupPageState extends State<SignupPage> {
 
   final TextEditingController _emailTEController = TextEditingController();
-  final TextEditingController _firstNameTEController = TextEditingController();
-  final TextEditingController _lastNameTEController = TextEditingController();
+  final TextEditingController _nameTEController = TextEditingController();
   final TextEditingController _mobileTEController = TextEditingController();
   final TextEditingController _passwordTEController = TextEditingController();
+  final TextEditingController _confirmPasswordTEController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  bool _isProgress = false;
+  final _supabase = Supabase.instance.client;
 
 
   @override
@@ -51,40 +55,27 @@ class _SignupPageState extends State<SignupPage> {
                             if(EmailValidator.validate(inputText)== false){
                               return 'Enter a valid email';
                             }
+                            if(RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value!) == false){
+                              return 'Enter a valid email';
+                            }
                             return null;
                           },
                         ),
                         const SizedBox(height: 8,),
                         TextFormField(
-                          controller: _firstNameTEController,
+                          controller: _nameTEController,
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
                             prefixIcon: Icon(Icons.person),
-                            hintText: 'First Name',
+                            hintText: 'Name',
                             prefixIconColor: Colors.black,
                           ),
                           validator: (String? value) {
                             if(value?.trim().isEmpty ?? true){
-                              return 'Enter a first name';
+                              return 'Enter your name';
                             }
                             return null;
                           },
-                        ),
-                        const SizedBox(height: 8,),
-                        TextFormField(
-                            controller: _lastNameTEController,
-                            textInputAction: TextInputAction.next,
-                            decoration: InputDecoration(
-                              prefixIcon: Icon(Icons.person),
-                              hintText: 'Last Name',
-                              prefixIconColor: Colors.black,
-                            ),
-                            validator: (String? value) {
-                              if(value?.trim().isEmpty ?? true){
-                                return 'Enter a last name';
-                              }
-                              return null;
-                            }
                         ),
                         const SizedBox(height: 8,),
                         TextFormField(
@@ -118,14 +109,42 @@ class _SignupPageState extends State<SignupPage> {
                               if((value?.length ?? 0) <= 6){
                                 return 'Enter a password more than 6 letters';
                               }
+                              if(!RegExp(r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[!@#\$&*~]).{8,}$').hasMatch(value!)){
+                                return 'Enter a valid password';
+                              }
                               return null;
                             }
+                        ),
+                        const SizedBox(height: 8,),
+
+                        TextFormField(
+                          controller: _confirmPasswordTEController,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            prefixIcon: Icon(Icons.lock),
+                            hintText: 'Confirm Password',
+                            prefixIconColor: Colors.black,
+                            suffixIcon: Icon(Icons.remove_red_eye),
+                            suffixIconColor: Colors.black,
+                          ),
+                          validator: (String? value) {
+
+                            if(value == null || value.isEmpty){
+                              return 'Confirm your password';
+                            }
+
+                            if(value != _passwordTEController.text){
+                              return 'Password does not match';
+                            }
+
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 16,),
 
                         FilledButton(
                               onPressed: _onTapSubmitButton,
-                              child: Icon(Icons.arrow_circle_right_outlined)
+                              child: _isProgress ? CircularProgressIndicator() : Text('Register'),
                           ),
 
                         const SizedBox(height: 36,),
@@ -144,9 +163,15 @@ class _SignupPageState extends State<SignupPage> {
                                         style: TextStyle(
                                             color: Colors.green
                                         ),
-                                          recognizer: TapGestureRecognizer()..onTap = (){
-                                            LoginPage();
-                                          }
+                                        recognizer: TapGestureRecognizer()
+                                          ..onTap = () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => const LoginPage(),
+                                              ),
+                                            );
+                                          },
                                       )
                                     ]
                                 ),
@@ -166,7 +191,7 @@ class _SignupPageState extends State<SignupPage> {
 
   void _onTapSubmitButton(){
     if(_formKey.currentState!.validate()){
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Signup is done')));
+      register();
     }
     else{
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Something went wrong')));
@@ -174,14 +199,60 @@ class _SignupPageState extends State<SignupPage> {
 
   }
 
+  void register() async {
+    String email = _emailTEController.text.trim();
+    String name = _nameTEController.text.trim();
+    String mobile = _mobileTEController.text.trim();
+    String password = _passwordTEController.text.trim();
+    setState(() {
+      _isProgress = true;
+    });
+    try {
+      final authResponse = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+      );
+      final user = authResponse.user;
+      if (user != null) {
+        await _supabase.from('profiles').insert({
+          'id': user.id,
+          'name': name,
+          'mobile': mobile,
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Signup is done')));
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const LoginPage(),
+        ),
+      );
+    } on AuthApiException catch (e) {
+      setState(() {
+        _isProgress = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+    _nameTEController.clear();
+    _emailTEController.clear();
+    _mobileTEController.clear();
+    _passwordTEController.clear();
+    _confirmPasswordTEController.clear();
+    setState(() {
+      _isProgress = false;
+    });
+  }
+
+
+
   @override
   void dispose(){
     super.dispose();
     _emailTEController.dispose();
-    _firstNameTEController.dispose();
-    _lastNameTEController.dispose();
+    _nameTEController.dispose();
     _mobileTEController.dispose();
     _passwordTEController.dispose();
+    _confirmPasswordTEController.dispose();
   }
 
 }
