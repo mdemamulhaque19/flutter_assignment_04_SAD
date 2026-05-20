@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_assignment_4/auth_gate.dart';
 import 'package:flutter_assignment_4/login_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: 'https://ecmpnpfiariuqgvzamxn.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjbXBucGZpYXJpdXFndnphbXhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MjE3OTgsImV4cCI6MjA5NDQ5Nzc5OH0.4p17boyr86kfIo4RVxz_QvjZz6_x0zbM57_6AwFVy-w'
+  );
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -44,7 +50,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-      home: LoginPage(),
+      home: AuthGate(),
     );
   }
 }
